@@ -227,6 +227,16 @@
     </xs:complexType>
 </xs:element>
 
+<xs:element name="superseded">
+    <xs:complexType mixed="true">
+        <xs:sequence>
+            <xs:element ref="description" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute ref="since" use="required"/>
+        <xs:attribute ref="replaced_by" use="required"/>
+    </xs:complexType>
+</xs:element>
+
 <xs:element name="wip">
     <xs:complexType mixed="true">
         <xs:sequence>
@@ -265,6 +275,7 @@
         <xs:sequence>
             <xs:choice minOccurs="0" maxOccurs="1">
                 <xs:element ref="deprecated"/>
+                <xs:element ref="superseded"/>
                 <xs:element ref="wip"/>
             </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
@@ -286,6 +297,7 @@
         <xs:sequence>
             <xs:choice minOccurs="0" maxOccurs="1">
                 <xs:element ref="deprecated"/>
+                <xs:element ref="superseded"/>
                 <xs:element ref="wip"/>
             </xs:choice>
             <xs:element ref="description" minOccurs="0"/>
@@ -302,6 +314,7 @@
             <xs:sequence minOccurs="1" maxOccurs="1">
                 <xs:choice minOccurs="0" maxOccurs="1">
                     <xs:element ref="deprecated"/>
+                    <xs:element ref="superseded"/>
                     <xs:element ref="wip"/>
                 </xs:choice>
                 <xs:element ref="description" minOccurs="1" maxOccurs="1"/>
