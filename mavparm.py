@@ -100,8 +100,9 @@ class MAVParmDict(dict):
         count = 0
         changed = 0
         for line in f:
-            line = line.strip()
-            if not line or line[0] == "#":
+            # strip comments, which may be at the end of a line
+            line = line.split('#')[0].strip()
+            if not line:
                 continue
             line = line.replace(',',' ')
             a = line.split()
