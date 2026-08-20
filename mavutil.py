@@ -1337,6 +1337,58 @@ class mavtcp(mavfile):
             self.do_connect()
 
 
+class mavuds(mavtcp):
+    '''a Unix domain stream MAVLink socket'''
+    def __init__(self,
+                 device,
+                 autoreconnect=False,
+                 source_system=255,
+                 source_component=0,
+                 retries=6,
+                 use_native=default_native):
+        if not device:
+            raise ValueError("Unix domain socket path must be specified")
+        self.destination_addr = device
+        self.autoreconnect = autoreconnect
+        self.retries = retries
+        self.do_connect()
+
+        mavfile.__init__(self, self.port.fileno(), "uds:" + device,
+                         source_system=source_system,
+                         source_component=source_component,
+                         use_native=use_native)
+
+    def do_connect(self):
+        retries = self.retries
+        if retries <= 0:
+            retries = 1
+        while retries >= 0:
+            retries -= 1
+            self.port = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            try:
+                self.port.connect(self.destination_addr)
+                break
+            except Exception as e:
+                self.port.close()
+                self.port = None
+                if retries == 0:
+                    raise e
+                print(e, "sleeping")
+                time.sleep(1)
+        self.port.setblocking(0)
+        set_close_on_exec(self.port.fileno())
+        if hasattr(self, 'fd'):
+            self.fd = self.port.fileno()
+
+    def handle_disconnect(self):
+        print("Connection reset or closed by peer on Unix domain socket")
+        self.reconnect()
+
+    def handle_eof(self):
+        print("EOF on Unix domain socket")
+        self.reconnect()
+
+
 class mavtcpin(mavfile):
     '''a TCP input mavlink socket'''
     def __init__(self, device, source_system=255, source_component=0, retries=3, use_native=default_native):
@@ -2058,7 +2110,7 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                        retries=3, reconnect_delay=1, use_native=default_native,
                        force_connected=False, progress_callback=None,
                        udp_timeout=0, **opts):
-    '''open a serial, UDP, TCP or file mavlink connection'''
+    '''open a serial, UDP, TCP, Unix domain socket or file mavlink connection'''
     global mavfile_global
 
     if force_connected:
@@ -2077,6 +2129,20 @@ def mavlink_connection(device, baud=115200, source_system=255, source_component=
                       use_native=use_native)
     if device.startswith('tcpin:'):
         return mavtcpin(device[6:], source_system=source_system, source_component=source_component, retries=retries, use_native=use_native)
+    if device.startswith('uds:'):
+        return mavuds(device[4:],
+                      autoreconnect=autoreconnect,
+                      source_system=source_system,
+                      source_component=source_component,
+                      retries=retries,
+                      use_native=use_native)
+    if device.startswith('unix:'):
+        return mavuds(device[5:],
+                      autoreconnect=autoreconnect,
+                      source_system=source_system,
+                      source_component=source_component,
+                      retries=retries,
+                      use_native=use_native)
     if device.startswith('udpin:'):
         return mavudp(device[6:], input=True, source_system=source_system, source_component=source_component, use_native=use_native, timeout=udp_timeout)
     if device.startswith('udpout:'):
