@@ -2,7 +2,7 @@
 
 """
 Test 32 bit system IDs (MAVLINK_IFLAG_SYSID32) and extended header
-targeting (MAVLINK_IFLAG_TARGETTED)
+targeting (MAVLINK_IFLAG_TARGETTED_SYSID32)
 """
 
 import importlib.util
@@ -86,13 +86,14 @@ def test_round_trip(mav, sysid, target):
 
     hdr = m.get_header()
     assert ((hdr.incompat_flags & mav.MAVLINK_IFLAG_SYSID32) != 0) == (sysid > 255)
-    assert ((hdr.incompat_flags & mav.MAVLINK_IFLAG_TARGETTED) != 0) == (target > 255)
+    assert ((hdr.incompat_flags & mav.MAVLINK_IFLAG_TARGETTED_SYSID32) != 0) == (target > 255)
     assert hdr.compat_flags == mav.MAVLINK_CFLAG_SYSID32
 
     # payload must not contain the >255 target (it goes in the header)
     if target > 255:
         payload = m.get_payload()
-        assert payload[30] == 0 if len(payload) > 30 else True
+        if len(payload) > 30:
+            assert payload[30] == 0
 
 
 @pytest.mark.parametrize("sysid", [SYSID_SMALL, SYSID_BIG])

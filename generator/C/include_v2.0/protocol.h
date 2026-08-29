@@ -117,7 +117,7 @@ static inline uint16_t mavlink_msg_get_send_buffer_length(const mavlink_message_
 	if (msg->incompat_flags & MAVLINK_IFLAG_SYSID32) {
 		ext_header_len += MAVLINK_SYSID32_HEADER_EXTRA;
 	}
-	if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED) {
+	if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {
 		ext_header_len += MAVLINK_TARGETTED_HEADER_EXTRA;
 	}
 	return msg->len + MAVLINK_NUM_NON_PAYLOAD_BYTES + ext_header_len + signature_len;

@@ -34,7 +34,7 @@ namespace mavlink {
 
 // extra header bytes when MAVLINK_IFLAG_SYSID32 is set (sysid grows 1->4 bytes)
 #define MAVLINK_SYSID32_HEADER_EXTRA 3
-// extra header bytes when MAVLINK_IFLAG_TARGETTED is set (target_sysid[4] + target_compid[1])
+// extra header bytes when MAVLINK_IFLAG_TARGETTED_SYSID32 is set (target_sysid[4] + target_compid[1])
 #define MAVLINK_TARGETTED_HEADER_EXTRA 5
 #define MAVLINK_MAX_EXT_HEADER_BYTES (MAVLINK_SYSID32_HEADER_EXTRA + MAVLINK_TARGETTED_HEADER_EXTRA)
 #define MAVLINK_MAX_HEADER_LEN (MAVLINK_NUM_HEADER_BYTES + MAVLINK_MAX_EXT_HEADER_BYTES)
@@ -125,8 +125,8 @@ typedef struct __mavlink_message {
 	uint64_t payload64[(MAVLINK_MAX_PAYLOAD_LEN+MAVLINK_NUM_CHECKSUM_BYTES+7)/8];
 	uint8_t ck[2];          ///< incoming checksum bytes
 	uint8_t signature[MAVLINK_SIGNATURE_BLOCK_LEN];
-	uint32_t target_sysid;  ///< extended target system ID, valid only when (incompat_flags & MAVLINK_IFLAG_TARGETTED)
-	uint8_t target_compid;  ///< extended target component ID, valid only when (incompat_flags & MAVLINK_IFLAG_TARGETTED)
+	uint32_t target_sysid;  ///< extended target system ID, valid only when (incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32)
+	uint8_t target_compid;  ///< extended target component ID, valid only when (incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32)
 }) mavlink_message_t;
 
 typedef enum {
@@ -325,7 +325,7 @@ typedef struct __mavlink_msg_entry {
  */
 #define MAVLINK_IFLAG_SIGNED    0x01 // this message has a MAVLink2 signature attached
 #define MAVLINK_IFLAG_SYSID32   0x02 // this message uses a 32 bit system ID
-#define MAVLINK_IFLAG_TARGETTED 0x04 // this message has target sysid/compid in an extended header
+#define MAVLINK_IFLAG_TARGETTED_SYSID32 0x04 // this message has target sysid/compid in an extended header
 #define MAVLINK_IFLAG_MASK      0x07 // mask of all understood bits
 
 /*

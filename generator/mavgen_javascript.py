@@ -136,7 +136,7 @@ ${MAVHEAD}.MAVLINK_TYPE_DOUBLE   = 10
 
 ${MAVHEAD}.MAVLINK_IFLAG_SIGNED = 0x01
 ${MAVHEAD}.MAVLINK_IFLAG_SYSID32 = 0x02   // MAVLink2.1 32 bit system ID in the header
-${MAVHEAD}.MAVLINK_IFLAG_TARGETTED = 0x04 // MAVLink2.1 extended target header
+${MAVHEAD}.MAVLINK_IFLAG_TARGETTED_SYSID32 = 0x04 // MAVLink2.1 extended target header
 ${MAVHEAD}.MAVLINK_IFLAG_MASK = 0x07      // mask of incompat bits this parser understands
 ${MAVHEAD}.MAVLINK_CFLAG_SYSID32 = 0x01   // we understand 32 bit system IDs
 ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN = 13
@@ -151,7 +151,7 @@ ${MAVHEAD}.header = function(msgId, mlen, seq, srcSystem, srcComponent, incompat
     this.msgId = msgId
     this.incompat_flags = incompat_flags
     this.compat_flags = compat_flags
-    // extended target, only valid when MAVLINK_IFLAG_TARGETTED is set
+    // extended target, only valid when MAVLINK_IFLAG_TARGETTED_SYSID32 is set
     this.target_system = ( typeof target_system === 'undefined' ) ? 0 : target_system;
     this.target_component = ( typeof target_component === 'undefined' ) ? 0 : target_component;
 
@@ -174,7 +174,7 @@ ${MAVHEAD}.header.prototype.pack = function() {
         buf = buf.concat(jspack.Pack('B', [this.srcSystem]));
     }
     buf = buf.concat(jspack.Pack('BHB', [this.srcComponent, ((this.msgId & 0xFF) << 8) | ((this.msgId >> 8) & 0xFF), this.msgId>>16]));
-    if (this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED) {
+    if (this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED_SYSID32) {
         buf = buf.concat(jspack.Pack('<IB', [this.target_system, this.target_component]));
     }
     return buf;
@@ -385,7 +385,7 @@ ${MAVHEAD}.message.prototype.pack = function(mav, crc_extra, payload) {
     if ((this._target_system_fieldname != null) && (this[this._target_system_fieldname] > 255)) {
         // the target goes in the extended header; the payload byte was
         // packed as zero
-        incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED;
+        incompat_flags |= ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED_SYSID32;
         target_system = this[this._target_system_fieldname];
         if (this._target_component_fieldname != null) {
             target_component = this[this._target_component_fieldname];
@@ -754,11 +754,11 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
                 this.expected_length += ${MAVHEAD}.MAVLINK_SIGNATURE_BLOCK_LEN;
             }
             // MAVLink2.1 extended headers: account for their length so the
-            // stream stays in sync, the frame is rejected in decode()
+            // stream stays in sync through decode()
             if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_SYSID32 ){
                 this.expected_length += 3;
             }
-            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED ){
+            if ( this.incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED_SYSID32 ){
                 this.expected_length += 5;
             }
         }
@@ -964,7 +964,7 @@ if (msgbuf[0] == 253) {
         }
         srcComponent = msgbuf[hofs];
         msgId = msgbuf[hofs+1] | (msgbuf[hofs+2]<<8) | (msgbuf[hofs+3]<<16);  // 0 - 16777215  24bit number
-        if (incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED) {
+        if (incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED_SYSID32) {
             // MAVLink2.1 extended target header
             target_system = (msgbuf[hofs+4] | (msgbuf[hofs+5]<<8) | (msgbuf[hofs+6]<<16)) + (msgbuf[hofs+7]*16777216);
             target_component = msgbuf[hofs+8];
@@ -1206,7 +1206,7 @@ var unpacked = jspack.Unpack('BBBBBB', msgbuf.slice(0, 6));
     m._msgbuf = msgbuf;
     m._payload = payloadBuf;
     m.crc = receivedChecksum;
-    if ((incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED) && (m._target_system_fieldname != null)) {
+    if ((incompat_flags & ${MAVHEAD}.MAVLINK_IFLAG_TARGETTED_SYSID32) && (m._target_system_fieldname != null)) {
         // overlay the extended header target onto the decoded fields so
         // existing code reading msg.target_system keeps working
         m[m._target_system_fieldname] = target_system;
@@ -1484,4 +1484,3 @@ def generate(basename, xml):
     generate_tests_footer(outf, xml[0])
     outf.close()
     print("Generating TESTS %s" % testfilename)
-

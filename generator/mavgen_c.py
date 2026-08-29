@@ -277,7 +277,7 @@ ${{array_fields:    mav_array_memcpy(packet.${name}, ${name}, sizeof(${type})*${
 #if MAVLINK_CRC_EXTRA
     return mavlink_finalize_message_buffer${target_suffix}(msg, system_id, component_id, _status, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, MAVLINK_MSG_ID_${name}_CRC${target_args});
 #else
-    return mavlink_finalize_message_buffer(msg, system_id, component_id, _status, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN);
+    return mavlink_finalize_message_buffer${target_suffix}(msg, system_id, component_id, _status, MAVLINK_MSG_ID_${name}_MIN_LEN, MAVLINK_MSG_ID_${name}_LEN, 0${target_args});
 #endif
 }
 
@@ -458,6 +458,7 @@ ${{ordered_fields:    ${decode_left}${decode_call};
         memset(${name_lower}, 0, MAVLINK_MSG_ID_${name}_LEN);
     memcpy(${name_lower}, _MAV_PAYLOAD(msg), len);
 #endif
+${decode_post}
 }
 ''', m)
     f.close()
@@ -682,6 +683,7 @@ def generate_one(basename, xml):
     xml.message_name_array = xml.message_name_array[:-2]
 
     # add some extra field attributes for convenience with arrays
+    sysid32_capable = (xml.wire_protocol_version == mavparse.PROTOCOL_2_0)
     for m in xml.message:
         m.msg_name = m.name
         if xml.crc_extra:
@@ -691,15 +693,18 @@ def generate_one(basename, xml):
         # messages with a target_system field pass the (possibly 32 bit)
         # target through to finalize so it can go in the extended header.
         # MAVLink1 fixed headers have no extended header support
-        sysid32_capable = (xml.wire_protocol_version == mavparse.PROTOCOL_2_0)
         m.sysid_arg_type = 'uint32_t' if sysid32_capable else 'uint8_t'
         if sysid32_capable and m.target_system_fieldname is not None:
             m.target_suffix = '_target'
             m.target_args = ', %s, %s' % (m.target_system_fieldname,
                                           m.target_component_fieldname if m.target_component_fieldname is not None else '0')
+            m.decode_post = ('    if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {\n'
+                             '        %s->%s = UINT8_MAX;\n'
+                             '    }\n' % (m.name_lower, m.target_system_fieldname))
         else:
             m.target_suffix = ''
             m.target_args = ''
+            m.decode_post = ''
         for f in m.fields:
             if f.print_format is None:
                 f.c_print_format = 'NULL'
@@ -713,9 +718,9 @@ def generate_one(basename, xml):
             if sysid32_capable:
                 if f.is_target_system:
                     f.arg_type = 'uint32_t'
-                    f.target_check = 'if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED) {\n        return msg->target_sysid;\n    }\n    '
+                    f.target_check = 'if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {\n        return msg->target_sysid;\n    }\n    '
                 elif f.is_target_component:
-                    f.target_check = 'if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED) {\n        return msg->target_compid;\n    }\n    '
+                    f.target_check = 'if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {\n        return msg->target_compid;\n    }\n    '
             if f.array_length != 0:
                 f.array_suffix = '[%u]' % f.array_length
                 f.array_prefix = '*'
@@ -753,9 +758,9 @@ def generate_one(basename, xml):
                     f.c_test_value = "%sLL" % f.test_value                    
                 else:
                     f.c_test_value = f.test_value
-            # decode must fill the wire struct, so read the raw payload byte
-            # for target fields (zero when the target is in the extended
-            # header) rather than the TARGETTED-aware getter
+            # Decode the wire payload before decode_post replaces a zero
+            # extended target with UINT8_MAX in both aligned and byte-swap
+            # builds. The full target remains available from the getter.
             if sysid32_capable and (f.is_target_system or f.is_target_component):
                 f.decode_call = '_MAV_RETURN_uint8_t(msg, %u)' % f.wire_offset
             else:

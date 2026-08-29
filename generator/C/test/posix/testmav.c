@@ -248,7 +248,7 @@ static void test_sysid32(void)
                                           1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f);
 
             assert(((msg.incompat_flags & MAVLINK_IFLAG_SYSID32) != 0) == sysid32);
-            assert(((msg.incompat_flags & MAVLINK_IFLAG_TARGETTED) != 0) == targetted);
+            assert(((msg.incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) != 0) == targetted);
             assert(msg.compat_flags == MAVLINK_CFLAG_SYSID32);
             assert(msg.sysid == sysid);
 
@@ -261,7 +261,9 @@ static void test_sysid32(void)
 
             mavlink_command_long_t pkt;
             mavlink_msg_command_long_decode(&msg, &pkt);
-            assert(pkt.target_system == (targetted?0:target));
+            // UINT8_MAX cannot be mistaken for the broadcast value zero;
+            // use the getter above to obtain the full extended target.
+            assert(pkt.target_system == (targetted?UINT8_MAX:target));
             assert(pkt.target_component == 250);
 
             // round trip through the wire format
@@ -463,7 +465,7 @@ static void test_sysid32_send(void)
     assert(parse_buffer(sendbuf, capture_len, &rmsg, NULL, NULL) == MAVLINK_FRAMING_OK);
     assert(rmsg.sysid == 0x0A000001UL);
     assert((rmsg.incompat_flags & MAVLINK_IFLAG_SYSID32) != 0);
-    assert((rmsg.incompat_flags & MAVLINK_IFLAG_TARGETTED) != 0);
+    assert((rmsg.incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) != 0);
     assert(mavlink_msg_get_target_sysid(&rmsg, entry) == 0x0A000002UL);
     assert(mavlink_msg_get_target_compid(&rmsg, entry) == 250);
     assert(mavlink_msg_command_long_get_command(&rmsg) == 300);
@@ -526,7 +528,7 @@ static void test_sysid32_signing(void)
     memset(&msg, 0, sizeof(msg));
     mavlink_msg_command_long_pack_status(0x0A000001UL, 11, &status, &msg, 0x0A000002UL, 250, 300, 1,
                                          1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f);
-    assert(msg.incompat_flags == (MAVLINK_IFLAG_SIGNED|MAVLINK_IFLAG_SYSID32|MAVLINK_IFLAG_TARGETTED));
+    assert(msg.incompat_flags == (MAVLINK_IFLAG_SIGNED|MAVLINK_IFLAG_SYSID32|MAVLINK_IFLAG_TARGETTED_SYSID32));
     const uint16_t len = mavlink_msg_to_send_buffer(buf, &msg);
     assert(len == MAVLINK_MAX_HEADER_LEN + msg.len + 2 + MAVLINK_SIGNATURE_BLOCK_LEN);
 
@@ -742,4 +744,3 @@ int main(void)
 
 	return 0;
 }
-

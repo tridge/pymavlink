@@ -53,7 +53,7 @@ MAVLINK_SIGNATURE_BLOCK_LEN = 13
 
 MAVLINK_IFLAG_SIGNED = 0x01
 MAVLINK_IFLAG_SYSID32 = 0x02
-MAVLINK_IFLAG_TARGETTED = 0x04
+MAVLINK_IFLAG_TARGETTED_SYSID32 = 0x04
 MAVLINK_IFLAG_MASK = 0x07
 
 MAVLINK_CFLAG_SYSID32 = 0x01
@@ -149,7 +149,7 @@ class MAVLink_header(object):
         self.msgId = msgId
         self.incompat_flags = incompat_flags
         self.compat_flags = compat_flags
-        # extended target, only valid when MAVLINK_IFLAG_TARGETTED is set
+        # extended target, only valid when MAVLINK_IFLAG_TARGETTED_SYSID32 is set
         self.target_system = target_system
         self.target_component = target_component
 
@@ -173,7 +173,7 @@ class MAVLink_header(object):
                 self.msgId & 0xFFFF,
                 self.msgId >> 16,
             )
-            if self.incompat_flags & MAVLINK_IFLAG_TARGETTED:
+            if self.incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32:
                 buf += struct.pack("<IB", self.target_system, self.target_component)
             return buf
         if self.srcSystem > 255:
@@ -260,7 +260,7 @@ class MAVLink_message(object):
     def get_target_system(self) -> Optional[int]:
         """effective target system, honoring the TARGETTED extended header.
         Returns None for messages with no target"""
-        if self._header.incompat_flags & MAVLINK_IFLAG_TARGETTED:
+        if self._header.incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32:
             return self._header.target_system
         if self.target_system_fieldname is None:
             return None
@@ -269,7 +269,7 @@ class MAVLink_message(object):
     def get_target_component(self) -> Optional[int]:
         """effective target component, honoring the TARGETTED extended header.
         Returns None for messages with no target component"""
-        if self._header.incompat_flags & MAVLINK_IFLAG_TARGETTED:
+        if self._header.incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32:
             return self._header.target_component
         if self.target_component_fieldname is None:
             return None
@@ -369,7 +369,7 @@ class MAVLink_message(object):
                 if tsys > 255:
                     # the target goes in the extended header; the payload
                     # target byte was zeroed when the payload was packed
-                    incompat_flags |= MAVLINK_IFLAG_TARGETTED
+                    incompat_flags |= MAVLINK_IFLAG_TARGETTED_SYSID32
                     target_system = tsys
                     if self.target_component_fieldname is not None:
                         target_component = getattr(self, self.target_component_fieldname)
@@ -969,7 +969,7 @@ class MAVLink(object):
                     self.expected_length += MAVLINK_SIGNATURE_BLOCK_LEN
                 if incompat_flags & MAVLINK_IFLAG_SYSID32:
                     self.expected_length += MAVLINK_SYSID32_HEADER_EXTRA
-                if incompat_flags & MAVLINK_IFLAG_TARGETTED:
+                if incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32:
                     self.expected_length += MAVLINK_TARGETTED_HEADER_EXTRA
             self.expected_length += header_len + 2
         if self.expected_length >= (header_len + 2) and self.buf_len() >= self.expected_length:
@@ -1057,14 +1057,14 @@ class MAVLink(object):
             headerlen = HEADER_LEN_V2
             if hdr_incompat_flags & MAVLINK_IFLAG_SYSID32:
                 headerlen += MAVLINK_SYSID32_HEADER_EXTRA
-            if hdr_incompat_flags & MAVLINK_IFLAG_TARGETTED:
+            if hdr_incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32:
                 headerlen += MAVLINK_TARGETTED_HEADER_EXTRA
             try:
                 if hdr_incompat_flags & MAVLINK_IFLAG_SYSID32:
                     header_v2: MAVLinkV2Header = self.mav20_sysid32_unpacker.unpack(msgbuf[: HEADER_LEN_V2 + MAVLINK_SYSID32_HEADER_EXTRA])
                 else:
                     header_v2 = self.mav20_unpacker.unpack(msgbuf[:HEADER_LEN_V2])
-                if hdr_incompat_flags & MAVLINK_IFLAG_TARGETTED:
+                if hdr_incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32:
                     target_header: Tuple[int, int] = self.mav20_target_unpacker.unpack(msgbuf[headerlen - MAVLINK_TARGETTED_HEADER_EXTRA : headerlen])
                     target_system, target_component = target_header
             except struct.error as emsg:

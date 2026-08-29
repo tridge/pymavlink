@@ -192,7 +192,7 @@ public partial class MAVLink
                     int extlen = 0;
                     if ((buffer[2] & MAVLINK_IFLAG_SYSID32) > 0)
                         extlen += 3;
-                    if ((buffer[2] & MAVLINK_IFLAG_TARGETTED) > 0)
+                    if ((buffer[2] & MAVLINK_IFLAG_TARGETTED_SYSID32) > 0)
                         extlen += 5;
                     var discard = new byte[lengthtoread + extlen - (headerlengthstx - 2)];
                     try

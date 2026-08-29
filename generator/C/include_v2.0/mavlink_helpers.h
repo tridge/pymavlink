@@ -134,7 +134,7 @@ MAVLINK_HELPER uint8_t _mav_header_pack(uint8_t *buf, uint8_t magic, uint8_t len
 	buf[0] = magic;
 	buf[1] = len;
 	if (magic == MAVLINK_STX_MAVLINK1) {
-		if (sysid > 255 || target_sysid > 255) {
+		if (sysid > 255 || target_sysid > 255 || msgid > 255) {
 			// 32 bit IDs cannot be represented in MAVLink1; never truncate
 			return 0;
 		}
@@ -158,7 +158,7 @@ MAVLINK_HELPER uint8_t _mav_header_pack(uint8_t *buf, uint8_t magic, uint8_t len
 	buf[ofs++] = msgid & 0xFF;
 	buf[ofs++] = (msgid >> 8) & 0xFF;
 	buf[ofs++] = (msgid >> 16) & 0xFF;
-	if (incompat_flags & MAVLINK_IFLAG_TARGETTED) {
+	if (incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {
 		buf[ofs++] = target_sysid & 0xFF;
 		buf[ofs++] = (target_sysid >> 8) & 0xFF;
 		buf[ofs++] = (target_sysid >> 16) & 0xFF;
@@ -278,6 +278,12 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
 #endif
 
 
+/** Record a parse or output framing error. */
+static inline void _mav_parse_error(mavlink_status_t *status)
+{
+    status->parse_error++;
+}
+
 /**
  * @brief Finalize a MAVLink message with channel assignment
  *
@@ -290,11 +296,6 @@ MAVLINK_HELPER bool mavlink_signature_check(mavlink_signing_t *signing,
  * @param system_id Id of the sending (this) system, 1-127
  * @param length Message length
  */
-static inline void _mav_parse_error(mavlink_status_t *status)
-{
-    status->parse_error++;
-}
-
 MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer_target(mavlink_message_t* msg, uint32_t system_id, uint8_t component_id,
 						      mavlink_status_t* status, uint8_t min_length, uint8_t length, uint8_t crc_extra,
 						      uint32_t target_sysid, uint8_t target_compid)
@@ -308,8 +309,8 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer_target(mavlink_message_t
 	uint8_t signature_len = signing? MAVLINK_SIGNATURE_BLOCK_LEN : 0;
 	uint8_t buf[MAVLINK_MAX_HEADER_LEN];
 	if (mavlink1) {
-		if (system_id > 255 || target_sysid > 255) {
-			// 32 bit IDs cannot be represented in MAVLink1. Never
+		if (system_id > 255 || target_sysid > 255 || msg->msgid > 255) {
+			// 32 bit IDs and extended message IDs cannot be represented in MAVLink1. Never
 			// truncate: a masked sysid would alias another system
 			// and a zeroed target would become a broadcast
 			_mav_parse_error(status);
@@ -333,7 +334,7 @@ MAVLINK_HELPER uint16_t mavlink_finalize_message_buffer_target(mavlink_message_t
 			msg->incompat_flags |= MAVLINK_IFLAG_SYSID32;
 		}
 		if (target_sysid > 255) {
-			msg->incompat_flags |= MAVLINK_IFLAG_TARGETTED;
+			msg->incompat_flags |= MAVLINK_IFLAG_TARGETTED_SYSID32;
 			msg->target_sysid = target_sysid;
 			msg->target_compid = target_compid;
 		}
@@ -442,7 +443,7 @@ MAVLINK_HELPER void _mav_finalize_message_chan_send_target(mavlink_channel_t cha
 		incompat_flags |= MAVLINK_IFLAG_SYSID32;
 	    }
 	    if (target_sysid > 255) {
-		incompat_flags |= MAVLINK_IFLAG_TARGETTED;
+		incompat_flags |= MAVLINK_IFLAG_TARGETTED_SYSID32;
 	    }
             length = _mav_trim_payload(packet, length);
         }
@@ -648,7 +649,7 @@ MAVLINK_HELPER uint8_t mavlink_max_message_length(const mavlink_message_t *msg)
 #define MAVLINK_HAVE_GET_TARGET_SYSID
 MAVLINK_HELPER uint32_t mavlink_msg_get_target_sysid(const mavlink_message_t *msg, const mavlink_msg_entry_t *entry)
 {
-	if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED) {
+	if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {
 		return msg->target_sysid;
 	}
 	if (entry == NULL || !(entry->flags & MAV_MSG_ENTRY_FLAG_HAVE_TARGET_SYSTEM)) {
@@ -668,7 +669,7 @@ MAVLINK_HELPER uint32_t mavlink_msg_get_target_sysid(const mavlink_message_t *ms
 */
 MAVLINK_HELPER uint8_t mavlink_msg_get_target_compid(const mavlink_message_t *msg, const mavlink_msg_entry_t *entry)
 {
-	if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED) {
+	if (msg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {
 		return msg->target_compid;
 	}
 	if (entry == NULL || !(entry->flags & MAV_MSG_ENTRY_FLAG_HAVE_TARGET_COMPONENT)) {
@@ -769,7 +770,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 			status->parse_state = MAVLINK_PARSE_STATE_IDLE;
 			break;
 		}
-		if (!(rxmsg->incompat_flags & MAVLINK_IFLAG_TARGETTED)) {
+		if (!(rxmsg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32)) {
 			// don't leave stale target IDs in re-used buffers
 			rxmsg->target_sysid = 0;
 			rxmsg->target_compid = 0;
@@ -855,7 +856,7 @@ MAVLINK_HELPER uint8_t mavlink_frame_char_buffer(mavlink_message_t* rxmsg,
 	case MAVLINK_PARSE_STATE_GOT_MSGID2:
 		rxmsg->msgid |= ((uint32_t)c)<<16;
 		mavlink_update_checksum(rxmsg, c);
-		if (rxmsg->incompat_flags & MAVLINK_IFLAG_TARGETTED) {
+		if (rxmsg->incompat_flags & MAVLINK_IFLAG_TARGETTED_SYSID32) {
 			status->parse_state = MAVLINK_PARSE_STATE_GOT_MSGID3_TARGETTED;
 		} else if(rxmsg->len > 0){
 			status->parse_state = MAVLINK_PARSE_STATE_GOT_MSGID3;

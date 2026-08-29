@@ -371,7 +371,7 @@ describe('MAVLink 2.1 32 bit system IDs', function() {
             1,         // confirmation
             1, 2, 3, 4, 5, 6, 7);
         var packed = cl.pack(this.mav);
-        ((packed[2] & this.mavlink20.MAVLINK_IFLAG_TARGETTED) != 0).should.eql(true);
+        ((packed[2] & this.mavlink20.MAVLINK_IFLAG_TARGETTED_SYSID32) != 0).should.eql(true);
         var msgs = this.rx.parseBuffer(packed);
         msgs.length.should.eql(1);
         msgs[0]._name.should.eql('COMMAND_LONG');

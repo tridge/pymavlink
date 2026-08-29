@@ -413,7 +413,7 @@ ${MAVPROCESSOR}.prototype.parseLength = function() {
         if (incompat_flags & 0x02) { // MAVLINK_IFLAG_SYSID32
             this.expected_length += 3;
         }
-        if (incompat_flags & 0x04) { // MAVLINK_IFLAG_TARGETTED
+        if (incompat_flags & 0x04) { // MAVLINK_IFLAG_TARGETTED_SYSID32
             this.expected_length += 5;
         }
     }

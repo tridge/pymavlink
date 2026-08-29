@@ -82,7 +82,9 @@ end
 ---True when this firmware passes messages with the MAVLink2.1 32 bit
 ---sysid mavlink_message_t layout. Older firmware uses a 1 byte sysid and
 ---has no trailing extended target fields, giving a 291 byte structure
----instead of 299, so the same script can work on both
+---instead of 299 when MAVLINK_MAX_PAYLOAD_LEN has its default value of
+---255, so the same script can work on both. Firmware using a reduced
+---MAVLINK_MAX_PAYLOAD_LEN must regenerate this script with matching layout
 ---@param message any -- encoded message
 ---@return boolean
 function mavlink_msgs.sysid32_layout(message)
@@ -130,11 +132,11 @@ function mavlink_msgs.decode_header(message)
   -- fetch the message id
   result.msgid = string.unpack("<I3", message, 13)
 
-  -- extended target from the MAVLink2.1 TARGETTED header, stored at the
-  -- end of the C structure
+  -- extended target from the MAVLink2.1 TARGETTED_SYSID32 header. These
+  -- are the final five bytes of the packed C structure, independent of
+  -- MAVLINK_MAX_PAYLOAD_LEN
   if (result.incompat_flags & 0x04) ~= 0 then
-    result.target_sysid = string.unpack("<I4", message, 295)
-    result.target_compid = string.unpack("<B", message, 299)
+    result.target_sysid, result.target_compid = string.unpack("<I4B", message, #message - 4)
   end
 
   return result, 16
@@ -188,7 +190,7 @@ function mavlink_msgs.decode(message, msg_map)
         end
         crc_buffer = crc_buffer .. string.sub(message, 12, 15)
         if (result.incompat_flags & 0x04) ~= 0 then
-          crc_buffer = crc_buffer .. string.sub(message, 295, 299)
+          crc_buffer = crc_buffer .. string.sub(message, #message - 4, #message)
         end
         crc_buffer = crc_buffer .. string.sub(message, payload_ofs, payload_ofs - 1 + result.payload_length)
       end
@@ -273,4 +275,3 @@ return mavlink_msgs
 """.format(module_root_rel=module_root_rel))
     outf.close()
     print("Generated %s OK" % basename)
-
